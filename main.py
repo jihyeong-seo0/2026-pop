@@ -15,11 +15,18 @@ def load_data(path):
     # 행정구역 이름에서 뒤쪽 코드값 "(1234567890)" 제거한 표시용 컬럼 생성
     df["지역명"] = df["행정구역"].str.replace(r"\s*\(\d+\)\s*$", "", regex=True).str.strip()
 
-    # "년월_성별_나이세" 패턴 컬럼만 추출 (계/남/여 각각 0세~100세이상)
+    # 행정구역/지역명을 제외한 모든 컬럼은 숫자 컬럼이므로 콤마 제거 후 숫자형으로 일괄 변환
+    value_cols = [c for c in df.columns if c not in ("행정구역", "지역명")]
+    for col in value_cols:
+        df[col] = pd.to_numeric(
+            df[col].astype(str).str.replace(",", "", regex=False), errors="coerce"
+        )
+
+    # "년월_성별_나이세" 패턴 컬럼만 따로 추출 (계/남/여 각각 0세~100세이상)
     age_pattern = re.compile(r"^(\d{4}년\d{2}월)_(계|남|여)_(\d+)세$|^(\d{4}년\d{2}월)_(계|남|여)_(100세 이상)$")
 
     age_cols = []
-    for col in df.columns:
+    for col in value_cols:
         m = age_pattern.match(col)
         if m:
             if m.group(1):  # 일반 나이
@@ -27,10 +34,6 @@ def load_data(path):
             else:  # 100세 이상
                 month, gender, age = m.group(4), m.group(5), 100
             age_cols.append((col, month, gender, age))
-            # 콤마 제거 후 숫자형 변환
-            df[col] = pd.to_numeric(
-                df[col].astype(str).str.replace(",", "", regex=False), errors="coerce"
-            )
 
     age_df = pd.DataFrame(age_cols, columns=["컬럼명", "년월", "성별", "나이"])
     return df, age_df
